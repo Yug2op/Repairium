@@ -1,11 +1,17 @@
-import React from 'react'
+import { BrowserRouter } from "react-router-dom";
+import AppRoutes from "./routes/AppRoutes";
+import { Toaster } from "react-hot-toast";
 
-const App = () => {
+function App() {
   return (
-    <div className='text-red-500'>
-      App
-    </div>
-  )
+    <BrowserRouter>
+      {/* Toast Notifications */}
+      <Toaster position="top-right" />
+
+      {/* Routes */}
+      <AppRoutes />
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
