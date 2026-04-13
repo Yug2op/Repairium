@@ -61,7 +61,7 @@ const Navbar = () => {
             onClick={() => navigate("/")}
             className="flex items-center gap-2 group"
           >
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary transition-all">
+            <div className="w-9 h-9 rounded-xl  bg-gradient-to-r from-gray-200 to-slate-400 flex items-center justify-center group-hover:bg-primary transition-all">
               <Wrench className="text-primary group-hover:text-primary-foreground" size={18} />
             </div>
             <span className="text-xl font-display font-bold text-foreground">
@@ -75,11 +75,19 @@ const Navbar = () => {
               <button
                 key={link.path}
                 onClick={() => navigate(link.path)}
-                className="relative text-sm font-medium text-muted-foreground hover:text-foreground transition"
+                className={`relative text-sm font-medium px-2 py-1 rounded-md transition group
+                  ${
+                    isActive(link.path)
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
               >
                 {link.label}
 
-                {/* Active underline */}
+                {/* Hover Underline */}
+                <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-primary transition-all duration-300 group-hover:w-full" />
+
+                {/* Active Underline */}
                 {isActive(link.path) && (
                   <motion.div
                     layoutId="nav-underline"
@@ -160,7 +168,12 @@ const Navbar = () => {
                 <button
                   key={link.path}
                   onClick={() => navigate(link.path)}
-                  className="text-left px-4 py-3 rounded-lg hover:bg-muted"
+                  className={`text-left px-4 py-3 rounded-lg transition
+                    ${
+                      isActive(link.path)
+                        ? "bg-primary/10 text-primary"
+                        : "hover:bg-muted"
+                    }`}
                 >
                   {link.label}
                 </button>

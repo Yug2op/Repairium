@@ -21,7 +21,7 @@ const Footer = () => {
           </div>
 
           {/* Navigation Links */}
-          <div className="flex gap-8 text-sm">
+          <div className="flex gap-8 text-sm font-semibold">
             <Link
               to="/services"
               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -44,7 +44,7 @@ const Footer = () => {
         </div>
 
         {/* Bottom Section */}
-        <div className="border-t border-border mt-8 pt-6 text-center text-xs text-muted-foreground">
+        <div className="border-t border-border mt-8 pt-6 text-center text-md font-medium text-muted-foreground">
           © {new Date().getFullYear()} Repairium. All rights reserved.
         </div>
       </div>
