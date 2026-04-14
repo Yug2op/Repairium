@@ -14,6 +14,11 @@ import UserDashboard from "../pages/user/Dashboard";
 import TechnicianDashboard from "../pages/technician/Dashboard";
 import AdminDashboard from "../pages/admin/Dashboard";
 
+// ✅ NEW ADMIN PAGES
+import Users from "../pages/admin/Users";
+import Technicians from "../pages/admin/Technicians";
+import Bookings from "../pages/admin/Bookings";
+
 // Protection
 import ProtectedRoute from "./ProtectedRoute";
 import RoleRoute from "./RoleRoute";
@@ -21,7 +26,6 @@ import RoleRoute from "./RoleRoute";
 const AppRoutes = () => {
   return (
     <Routes>
-
       {/* ❌ Public Routes (only login/register allowed) */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
@@ -99,8 +103,47 @@ const AppRoutes = () => {
         }
       />
 
+      {/* ✅ ADMIN USERS */}
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["admin"]}>
+              <Users />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ ADMIN TECHNICIANS */}
+      <Route
+        path="/admin/technicians"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["admin"]}>
+              <Technicians />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ ADMIN BOOKINGS */}
+      <Route
+        path="/admin/bookings"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["admin"]}>
+              <Bookings />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+
       {/* 404 */}
-      <Route path="*" element={<h1 className="text-center mt-10">404 Not Found</h1>} />
+      <Route
+        path="*"
+        element={<h1 className="text-center mt-10">404 Not Found</h1>}
+      />
     </Routes>
   );
 };
