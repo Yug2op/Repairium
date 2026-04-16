@@ -10,17 +10,18 @@ const Login = () => {
   const getDashboardByRole = (role) => {
     if (role === "admin") return "/admin/dashboard";
     if (role === "technician") return "/technician/dashboard";
-    return "/"; // 👈 user goes to home
+    return "/"; // user
   };
 
   const handleLogin = (data) => {
+
+    // Save login
     login(data);
 
     const role = data?.user?.role || data?.role || "user";
-
     const redirectPath = getDashboardByRole(role);
 
-    navigate(redirectPath, { replace: true }); // ✅ smoother navigation
+    navigate(redirectPath, { replace: true });
   };
 
   return (
