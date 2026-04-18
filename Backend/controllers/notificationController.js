@@ -408,7 +408,7 @@ export const notifyTechnicians = async (req, res) => {
           entityId: booking._id
         },
         channels: ['in_app', 'email', 'push'],
-        actionUrl: `/bookings/${booking._id}`,
+        actionUrl: `/technician/bookings/${booking._id}`,
         actionText: 'View Booking',
         metadata: {
           bookingId: booking.bookingId,

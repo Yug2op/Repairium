@@ -158,7 +158,8 @@ export const getTechnicianBookings = async (req, res) => {
 export const updateBookingStatus = async (req, res) => {
   try {
     const technician = req.user;
-    const { bookingId, status, notes } = req.body;
+    const { bookingId } = req.params;
+    const { status, technicianNotes, sparePartsCost } = req.body;
 
     // Check if booking belongs to technician
     const booking = await Booking.findOne({
@@ -191,19 +192,9 @@ export const updateBookingStatus = async (req, res) => {
 
     // Update booking
     booking.status = status;
-    if (notes) {
-      booking.notes = booking.notes || [];
-      booking.notes.push({
-        technician: technician._id,
-        text: notes,
-        createdAt: new Date()
-      });
-    }
-
     if (status === 'in_progress') {
-      booking.startTime = new Date();
+      booking.startedAt = new Date();
     } else if (status === 'completed') {
-      booking.endTime = new Date();
       booking.completedAt = new Date();
 
       // UPDATE TECHNICIAN STATS
@@ -213,7 +204,32 @@ export const updateBookingStatus = async (req, res) => {
         // Note: totalBookings should have been incremented when the booking was first created
       });
     }
+    booking.timeline.push({
+      status,
+      note: `Updated to ${status} by technician`,
+      updatedBy: technician._id,
+      timelineModel: 'Technician'
+    });
+    if (technicianNotes) booking.technicianNotes = technicianNotes;
+    if (status === 'completed') {
+      const finalBasePrice = booking.estimatedCost.basePrice;
+      const finalSpareParts = sparePartsCost || 0;
+      
+      booking.actualCost = {
+        basePrice: finalBasePrice,
+        serviceCharge: booking.estimatedCost.serviceCharge,
+        emergencyCharge: booking.estimatedCost.emergencyCharge,
+        sparePartsCost: finalSpareParts,
+        total: finalBasePrice + 
+               booking.estimatedCost.serviceCharge + 
+               booking.estimatedCost.emergencyCharge + 
+               finalSpareParts
+      };
 
+      // Sync payment logic
+      booking.payment.amount = booking.actualCost.total;
+      
+    }
     await booking.save();
 
     // Send notification to user

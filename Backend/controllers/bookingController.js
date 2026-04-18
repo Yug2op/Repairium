@@ -17,102 +17,65 @@ export const createBooking = async (req, res) => {
     const {
       applianceId,
       serviceType = 'regular',
-      selectedIssue,     // optional: one of appliance.commonIssues
-      issueDescription,  // optional: free-text from user
-      serviceAddress,    // { street, city, state, pincode, coordinates }
+      selectedIssue,
+      issueDescription,
+      serviceAddress, // Should include { street, city, state, pincode, coordinates: { coordinates: [lng, lat] } }
       preferredDate,
       preferredTime,
+      priority = 'medium' // Added: Model has priority field
     } = req.body;
 
-    // 1. Validate appliance exists and is active
     const appliance = await Appliance.findById(applianceId);
     if (!appliance || !appliance.isActive) {
-      return res.status(404).json({
-        success: false,
-        message: 'Appliance not found or not available',
-      });
+      return res.status(404).json({ success: false, message: 'Appliance not found' });
     }
 
-    // 2. Auto-fetch pricing from appliance
+    // Pricing Calculation
     let basePrice = appliance.basePrice;
     let serviceCharge = appliance.serviceCharge;
     let emergencyCharge = serviceType === 'emergency' ? (appliance.emergencyCharge || 0) : 0;
-
-    // If a known issue was selected, adjust estimated cost
     let sparePartsCost = 0;
+
     if (selectedIssue) {
-      const matched = appliance.commonIssues.find(
-        (ci) => ci.issue === selectedIssue
-      );
-      if (matched) {
-        basePrice = matched.estimatedCost; // override base with issue-specific cost
-      }
+      const matched = appliance.commonIssues.find(ci => ci.issue === selectedIssue);
+      if (matched) basePrice = matched.estimatedCost;
     }
 
     const total = basePrice + serviceCharge + emergencyCharge + sparePartsCost;
+    const finalDescription = [selectedIssue, issueDescription].filter(Boolean).join(' — ') || 'General service';
 
-    // 3. Build issue description (combine selected issue + free text)
-    const finalDescription =
-      [selectedIssue, issueDescription].filter(Boolean).join(' — ') || 'General service required';
-
-    // 4. Create booking WITHOUT a technician (status: pending)
     const newBooking = new Booking({
       user: user._id,
       appliance: applianceId,
-      // technician is intentionally omitted — set when a technician accepts
       serviceType,
+      priority, // Added
       issueDescription: finalDescription,
-      serviceAddress,
+      serviceAddress, 
       preferredDate: new Date(preferredDate),
       preferredTime,
-      estimatedCost: {
-        basePrice,
-        serviceCharge,
-        emergencyCharge,
-        sparePartsCost,
-        total,
+      estimatedCost: { basePrice, serviceCharge, emergencyCharge, sparePartsCost, total },
+      // Initializing payment state as per model
+      payment: {
+        status: 'pending',
+        amount: total
       },
       status: 'pending',
+      // Timeline updated via pre-save middleware, but we can set updatedBy here
+      timeline: [{
+        status: 'pending',
+        note: 'Booking initialized by user',
+        updatedBy: user._id,
+        timelineModel: 'User'
+      }]
     });
 
     await newBooking.save();
 
-    // 5. Notify all nearby technicians using the new service (fire-and-forget; don't block response)
-    TechnicianNotificationService.notifyNewBookingRequest(newBooking).catch((err) =>
-      console.error('TechnicianNotificationService error:', err)
-    );
+    // Notify logic (Fire and forget)
+    // notifyNearbyTechnicians(newBooking, appliance);
+    TechnicianNotificationService.notifyNewBookingRequest(newBooking).catch(err => console.error(err));
 
-    return res.status(201).json({
-      success: true,
-      message: 'Booking created. Finding a technician near you…',
-      data: {
-        booking: {
-          _id: newBooking._id,
-          bookingId: newBooking.bookingId,
-          status: newBooking.status,
-          serviceType: newBooking.serviceType,
-          issueDescription: newBooking.issueDescription,
-          serviceAddress: newBooking.serviceAddress,
-          preferredDate: newBooking.preferredDate,
-          preferredTime: newBooking.preferredTime,
-        },
-        appliance: {
-          name: appliance.name,
-          brand: appliance.brand,
-          model: appliance.model,
-          category: appliance.category,
-          subCategory: appliance.subCategory,
-          commonIssues: appliance.commonIssues, // returned so frontend can show them
-        },
-        estimatedCost: {
-          basePrice,
-          serviceCharge,
-          emergencyCharge,
-          sparePartsCost,
-          total,
-        },
-      },
-    });
+    return res.status(201).json({ success: true, data: newBooking });
   } catch (error) {
     console.error('Create booking error:', error);
     return res.status(500).json({
@@ -243,12 +206,22 @@ export const acceptBooking = async (req, res) => {
       {
         _id: bookingId,
         status: 'pending',
-        technician: { $exists: false }, // guard against race conditions
+        technician: { $exists: false }, 
       },
       {
-        status: 'confirmed',
-        technician: technician._id,
-        assignedAt: new Date(),
+        $set: {
+          status: 'confirmed',
+          technician: technician._id,
+          assignedAt: new Date(),
+        },
+        $push: {
+          timeline: {
+            status: 'confirmed',
+            note: 'Booking accepted by technician',
+            updatedBy: technician._id,
+            timelineModel: 'Technician'
+          }
+        }
       },
       { new: true }
     );
@@ -415,17 +388,27 @@ export const cancelBooking = async (req, res) => {
       });
     }
 
-    if (booking.status === 'completed') {
+    if (booking.status === 'completed' || booking.status === 'cancelled') {
       return res.status(400).json({
         success: false,
-        message: 'Cannot cancel a completed booking',
+        message: 'Cannot cancel in current state.',
       });
     }
 
+    const actorId = admin ? admin._id : user._id;
+    const actorModel = admin ? 'Admin' : 'User';
+
     booking.status = 'cancelled';
-    booking.cancelledBy = admin ? 'admin' : 'user';
+    booking.cancelledBy = actorId;
     booking.cancelledAt = new Date();
+    booking.cancellationModel = actorModel;
     booking.cancellationReason = reason;
+    booking.timeline.push({
+      status: 'cancelled',
+      note: reason || 'Cancelled by ' + actorModel,
+      updatedBy: actorId,
+      timelineModel: actorModel
+    });
     await booking.save();
 
     // Notify assigned technician if there is one
@@ -472,36 +455,106 @@ export const cancelBooking = async (req, res) => {
 // ─────────────────────────────────────────────
 // GET AVAILABLE BOOKINGS (for technician dashboard)
 // ─────────────────────────────────────────────
+// export const getAvailableBookings = async (req, res) => {
+//   try {
+//     // 1. Get the technician from req.user (populated by your auth middleware)
+//     const technician = req.user; 
+//     const { page = 1, limit = 10 } = req.query;
+
+//     const technicianDoc = await Technician.findById(technician._id);
+    
+//     // 2. Destructure the array correctly
+//     const { serviceAreas } = technicianDoc;
+
+//     // 3. Check if technician actually has service areas defined
+//     if (!serviceAreas || serviceAreas.length === 0) {
+//       return res.status(200).json({
+//         success: true,
+//         message: 'No service areas defined for this technician',
+//         data: { data: [], pagination: { total: 0 } }
+//       });
+//     }
+
+//     // 4. Build query using the first service area's data
+//     // Or use $in if you want to check ALL service areas the tech covers
+//     const query = {
+//       status: 'pending',
+//       technician: { $exists: false },
+//       'serviceAddress.city': serviceAreas[0].city,   // FIXED: Accessing index 0
+//       'serviceAddress.state': serviceAreas[0].state, // FIXED: Accessing index 0
+//     };
+
+//     const { skip, limit: limitNum } = paginate(parseInt(page), parseInt(limit));
+
+//     const bookings = await Booking.find(query)
+//       .populate('user', 'firstName lastName phone')
+//       .populate('appliance', 'name brand model category subCategory')
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limitNum);
+
+//     const total = await Booking.countDocuments(query);
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Available bookings retrieved successfully',
+//       data: createPaginationResponse(bookings, parseInt(page), limitNum, total),
+//     });
+//   } catch (error) {
+//     console.error('Get available bookings error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to retrieve available bookings',
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const getAvailableBookings = async (req, res) => {
   try {
-    // 1. Get the technician from req.user (populated by your auth middleware)
     const technician = req.user; 
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, useGeo = 'false' } = req.query;
 
+    // 1. Fetch the full technician profile to get their coverage zones
     const technicianDoc = await Technician.findById(technician._id);
     
-    // 2. Destructure the array correctly
-    const { serviceAreas } = technicianDoc;
-
-    // 3. Check if technician actually has service areas defined
-    if (!serviceAreas || serviceAreas.length === 0) {
+    if (!technicianDoc || !technicianDoc.serviceAreas || technicianDoc.serviceAreas.length === 0) {
       return res.status(200).json({
         success: true,
-        message: 'No service areas defined for this technician',
-        data: { data: [], pagination: { total: 0 } }
+        message: 'No service areas defined. Update profile to see bookings.',
+        data: { bookings: [], pagination: { total: 0, pages: 0, current: page } }
       });
     }
 
-    // 4. Build query using the first service area's data
-    // Or use $in if you want to check ALL service areas the tech covers
-    const query = {
+    // 2. Build the Logic Query
+    let query = {
       status: 'pending',
-      technician: { $exists: false },
-      'serviceAddress.city': serviceAreas[0].city,   // FIXED: Accessing index 0
-      'serviceAddress.state': serviceAreas[0].state, // FIXED: Accessing index 0
+      technician: { $exists: false }, // Only unassigned jobs
     };
 
-    const { skip, limit: limitNum } = paginate(parseInt(page), parseInt(limit));
+    // 3. Multizone Matching Logic
+    if (useGeo === 'true' && technicianDoc.currentLocation) {
+      // GEOSPATIAL SEARCH: Uses the 2dsphere index in your Booking model
+      query['serviceAddress.coordinates'] = {
+        $near: {
+          $geometry: technicianDoc.currentLocation,
+          $maxDistance: 20000 // 20km radius
+        }
+      };
+    } else {
+      // STRING MATCHING: Scan all cities/pincodes the tech covers
+      const cities = technicianDoc.serviceAreas.map(area => area.city);
+      const pincodes = technicianDoc.serviceAreas.map(area => area.pincode);
+
+      query['$or'] = [
+        { 'serviceAddress.city': { $in: cities } },
+        { 'serviceAddress.pincode': { $in: pincodes } }
+      ];
+    }
+
+    // 4. Execution & Pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
 
     const bookings = await Booking.find(query)
       .populate('user', 'firstName lastName phone')
@@ -514,14 +567,21 @@ export const getAvailableBookings = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Available bookings retrieved successfully',
-      data: createPaginationResponse(bookings, parseInt(page), limitNum, total),
+      data: {
+        bookings,
+        pagination: {
+          total,
+          pages: Math.ceil(total / limitNum),
+          current: parseInt(page),
+          limit: limitNum
+        }
+      }
     });
   } catch (error) {
-    console.error('Get available bookings error:', error);
+    console.error('Spatial Engine Retrieval Error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to retrieve available bookings',
+      message: 'Failed to synchronize available bookings',
       error: error.message,
     });
   }

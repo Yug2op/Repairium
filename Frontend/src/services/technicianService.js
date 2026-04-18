@@ -9,15 +9,8 @@ const API = axios.create({
     },
 });
 
-/**
- * Technician Service Layer
- */
 const technicianServices = {
 
-    /**
-     * Fetch full profile data
-     * Used for the main dashboard view
-     */
     getProfile: async () => {
         try {
             const response = await API.get('/technicians/profile');
@@ -27,9 +20,6 @@ const technicianServices = {
         }
     },
 
-    /**
-     * Fetch core user info (fallback or lightweight check)
-     */
     getMe: async () => {
         try {
             const response = await API.get('/auth/me');
@@ -39,10 +29,6 @@ const technicianServices = {
         }
     },
 
-    /**
-     * Toggle online/offline status
-     * @param {boolean} status 
-     */
     updateStatus: async (status) => {
         try {
             const response = await API.put('/technicians/availability', { isOnline: status });
@@ -52,9 +38,6 @@ const technicianServices = {
         }
     },
 
-    /**
-     * Get technician statistics
-     */
     getStats: async () => {
         try {
             const response = await API.get('/technicians/statistics');
@@ -63,6 +46,7 @@ const technicianServices = {
             throw error.response?.data || error.message;
         }
     },
+
     updateProfile: async (profileData) => {
         try {
             const response = await API.put('/technicians/profile', profileData);
@@ -123,9 +107,54 @@ const technicianServices = {
             const errorMessage = error.response?.data?.message || error.message || 'Upload failed';
             throw new Error(errorMessage);
         }
-    }
+    },
 
+    getBookings: async (params = {}) => {
+        try {
+            const response = await API.get('/technicians/bookings', { params });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
 
+    updateBookingStatus: async (bookingId, statusData) => {
+        try {
+            // statusData: { status, technicianNotes, sparePartsCost, basePrice }
+            const response = await API.put(`/technicians/bookings/${bookingId}/status`, statusData);
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    respondToRequest: async (bookingId, response) => {
+        try {
+            // response: { action: 'accept' | 'reject' }
+            const res = await API.post(`/technicians/bookings/${bookingId}/respond`, response);
+            return res.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    getReviews: async () => {
+        try {
+            const response = await API.get('/technicians/reviews');
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    getEarnings: async () => {
+        try {
+            const response = await API.get('/technicians/earnings');
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
 };
 
 export default technicianServices;

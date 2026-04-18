@@ -39,7 +39,7 @@ const MyBookings = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 pt-20 px-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 pt-20 mt-20 px-6">
 
       {/* Header */}
       <div className="max-w-6xl mx-auto mb-6">
