@@ -21,28 +21,44 @@ const ServicesPage = () => {
   const [selectedBrand, setSelectedBrand] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+const [hasNext, setHasNext] = useState(false);
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchAppliances = async () => {
-      try {
-        setLoading(true);
-        const res = await API.get("/appliances");
-        const data = res.data.data.data;
-        setServices(data);
-        setFiltered(data);
+  const fetchAppliances = async (pageNum = 1, append = false) => {
+  try {
+    setLoading(true);
 
-        const uniqueBrands = [...new Set(data.map((item) => item.brand))];
-        const uniqueCategories = [...new Set(data.map((item) => item.category))];
-        setBrands(uniqueBrands);
-        setCategories(uniqueCategories);
-      } catch (err) {
-        console.error("REGISTRY_SYNC_ERROR:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const res = await API.get(`/appliances?page=${pageNum}`);
+
+    const data = res.data.data.data;
+    const pagination = res.data.data.pagination;
+
+    if (append) {
+      setServices((prev) => [...prev, ...data]);
+      setFiltered((prev) => [...prev, ...data]);
+    } else {
+      setServices(data);
+      setFiltered(data);
+    }
+
+    setHasNext(pagination.hasNext);
+
+    const uniqueBrands = [...new Set(data.map((item) => item.brand))];
+    const uniqueCategories = [...new Set(data.map((item) => item.category))];
+
+    setBrands(uniqueBrands);
+    setCategories(uniqueCategories);
+
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  useEffect(() => {
     fetchAppliances();
   }, []);
 
@@ -218,6 +234,20 @@ const ServicesPage = () => {
             </button>
           </motion.div>
         )}
+        {hasNext && (
+  <div className="flex justify-center mt-12">
+    <button
+      onClick={() => {
+        const nextPage = page + 1;
+        setPage(nextPage);
+        fetchAppliances(nextPage, true);
+      }}
+      className="px-8 py-4 bg-slate-900 text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-indigo-600 transition-all"
+    >
+      Load_More
+    </button>
+  </div>
+)}
       </main>
     </div>
   );
