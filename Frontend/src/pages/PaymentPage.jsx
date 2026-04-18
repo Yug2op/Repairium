@@ -1,5 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { 
+  ShieldCheck, 
+  Zap, 
+  MapPin, 
+  User, 
+  CreditCard, 
+  ArrowRight, 
+  Activity,
+  Package,
+  CheckCircle,
+  Clock
+} from "lucide-react";
 import API from "../services/api";
 
 const PaymentPage = () => {
@@ -10,63 +22,47 @@ const PaymentPage = () => {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
 
-  // 🔥 Toast
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 3000);
   };
 
-  // 🔥 Fetch booking initially
-  useEffect(() => {
-    const fetchBooking = async () => {
-      try {
-        const res = await API.get(`/bookings/user/bookings/${bookingId}`);
-
-        console.log("BOOKING 👉", res.data);
-
-        setBooking(res.data.data.booking);
-      } catch (err) {
-        console.error("BOOKING ERROR 👉", err.response?.data);
-      } finally {
-        setLoading(false);
+  const fetchBooking = async () => {
+    try {
+      const res = await API.get(`/bookings/user/bookings/${bookingId}`);
+      const data = res.data.data.booking;
+      
+      // Update local state if status or price changed
+      if (booking?.status !== data.status) {
       }
-    };
+      setBooking(data);
+    } catch (err) {
+      console.error("DATA_SYNC_ERROR 👉", err.response?.data);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchBooking();
-  }, [bookingId]);
-
-  // 🔥 Poll until technician assigned
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await API.get(`/bookings/user/bookings/${bookingId}`);
-        const updatedBooking = res.data.data.booking;
-
-        setBooking(updatedBooking);
-
-        if (updatedBooking?.technician) {
-          showToast("Technician Assigned ✅");
-          clearInterval(interval);
-        }
-
-      } catch (err) {
-        console.error(err);
-      }
-    }, 3000);
-
+    // Engine Polling: Sync data every 4 seconds for real-time status updates
+    const interval = setInterval(fetchBooking, 4000);
     return () => clearInterval(interval);
   }, [bookingId]);
 
-  // 🔥 Create Order
   const createOrder = async () => {
     try {
       if (!booking?.technician?._id) {
-        showToast("Waiting for technician...");
+        showToast("Technician Assignment Pending...");
         return;
       }
 
+      // Logic Fix: Use actualCost total if available (comes from technician), 
+      // otherwise fallback to estimatedCost total.
+      const finalAmount = booking?.actualCost?.total || booking?.estimatedCost?.total || 2500;
+
       const payload = {
-        amount: booking?.pricing?.total || 2500,
+        amount: finalAmount,
         notes: {
           bookingId: bookingId,
           technicianId: booking.technician._id,
@@ -74,21 +70,13 @@ const PaymentPage = () => {
         }
       };
 
-      console.log("CREATE ORDER 👉", payload);
-
       const res = await API.post("/payments/create-order", payload);
-
-      console.log("ORDER 👉", res.data);
-
       return res.data.data;
-
     } catch (err) {
-      console.error("CREATE ORDER ERROR 👉", err.response?.data);
-      showToast("Payment init failed ❌");
+      showToast("Payment Protocol Failed ❌");
     }
   };
 
-  // 🔥 Verify Payment
   const verifyPayment = async (response, paymentId) => {
     try {
       await API.post("/payments/verify", {
@@ -98,23 +86,16 @@ const PaymentPage = () => {
         paymentId
       });
 
-      showToast("Payment Successful 🎉");
-
-      setTimeout(() => {
-        navigate(`/booking-success/${bookingId}`);
-      }, 1500);
-
+      showToast("Node Resolution Confirmed 🎉");
+      setTimeout(() => navigate(`/booking-success/${bookingId}`), 1500);
     } catch (err) {
-      console.error(err);
-      showToast("Payment verification failed ❌");
+      showToast("Verification Protocol Failed ❌");
     }
   };
 
-  // 🔥 Open Razorpay
   const handlePayment = async () => {
     try {
       const order = await createOrder();
-
       if (!order) return;
 
       const user = JSON.parse(localStorage.getItem("user"));
@@ -123,100 +104,179 @@ const PaymentPage = () => {
         key: order.keyId,
         amount: order.amount,
         currency: "INR",
-        name: "Repairium",
-        description: "Service Payment",
+        name: "REPAIRIUM_SYS",
+        description: `Service_Node: ${booking.bookingId}`,
         order_id: order.orderId,
-
-        handler: function (response) {
-          verifyPayment(response, order.paymentId);
-        },
-
+        handler: (res) => verifyPayment(res, order.paymentId),
         prefill: {
           name: user?.fullName,
           email: user?.email,
           contact: user?.phone
         },
-
-        theme: { color: "#000" }
+        theme: { color: "#4f46e5" } // Indigo-600
       };
 
       const rzp = new window.Razorpay(options);
       rzp.open();
-
     } catch (err) {
-      console.error(err);
-      showToast("Payment failed ❌");
+      showToast("Gateway Error ❌");
     }
   };
 
-  if (loading) {
-    return <p className="text-center mt-20">Loading booking...</p>;
-  }
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <Activity className="animate-spin text-indigo-600" size={32} />
+    </div>
+  );
+
+  // Dynamic Cost Logic for Display
+  const cost = booking?.actualCost?.total > 0 ? booking.actualCost : booking.estimatedCost;
 
   return (
-    <div className="max-w-3xl mx-auto mt-20 p-6">
-
-      {/* 🔥 Toast */}
+    <div className="min-h-screen bg-white font-sans text-slate-900 pb-20">
+      {/* Toast Terminal */}
       {toast && (
-        <div className="fixed top-5 right-5 bg-black text-white px-5 py-3 rounded-xl shadow-lg">
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-8 py-4 rounded-2xl shadow-2xl text-[10px] font-black uppercase tracking-[0.3em] animate-in fade-in zoom-in duration-300">
           {toast}
         </div>
       )}
 
-      <h1 className="text-2xl font-bold mb-6">Complete Payment</h1>
-
-      {/* Booking Info */}
-      <div className="bg-slate-100 p-5 rounded-xl mb-6">
-        <h2 className="font-bold text-lg">
-          {booking?.appliance?.name}
-        </h2>
-
-        <p className="text-gray-500">
-          {booking?.appliance?.brand}
-        </p>
-
-        <p className="text-xl font-semibold mt-3">
-          ₹{booking?.pricing?.total || 2500}
-        </p>
-      </div>
-
-      {/* Technician Status */}
-      {!booking?.technician && (
-        <div className="text-center mb-6">
-          <p className="text-gray-500">
-            🔍 Finding technician... please wait
-          </p>
+      {/* Header Space */}
+      <header className="pt-24 pb-12 px-6 border-b border-slate-50">
+        <div className="max-w-full mx-auto flex flex-col md:flex-row justify-between items-end gap-6">
+          <div>
+            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.4em]">Final_Reconciliation</span>
+            <h1 className="text-5xl lg:text-7xl font-black tracking-tighter italic leading-none mt-2">
+              Economic <span className="text-slate-200 font-light italic">Clearance</span>
+            </h1>
+          </div>
+          <div className="flex items-center gap-3 px-6 py-3 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className={`w-2 h-2 rounded-full ${booking.technician ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            <span className="text-[10px] font-black uppercase tracking-widest">{booking.status}</span>
+          </div>
         </div>
-      )}
+      </header>
 
-      {booking?.technician && (
-        <div className="bg-green-100 p-4 rounded-xl mb-6">
-          <p className="text-green-700 font-medium">
-            Technician Assigned ✅
-          </p>
-          <p className="text-sm text-gray-600">
-            {booking.technician?.name || "Technician"}
-          </p>
+      <main className="w-full mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-12 gap-12">
+        
+        {/* LEFT: MISSION SUMMARY */}
+        <div className="lg:col-span-7 space-y-6">
+          <section className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl">
+            <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-8">Service_Manifest</h3>
+            <div className="space-y-6">
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-indigo-400">
+                  <Zap size={18} />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Hardware_Unit</p>
+                  <p className="text-lg font-black tracking-tight">{booking?.appliance?.brand} {booking?.appliance?.name}</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-slate-400">
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Deployment_Site</p>
+                  <p className="text-sm font-bold opacity-80">{booking?.serviceAddress?.street}, {booking?.serviceAddress?.city}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* TECHNICIAN ASSIGNMENT */}
+          <section className="p-6 border border-slate-100 rounded-[2.5rem] bg-slate-50/50">
+            <div className="flex items-center justify-between mb-4">
+               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Technician_Node</h4>
+               {booking.technician ? (
+                 <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full text-[8px] font-black uppercase tracking-tighter">Verified_Link</span>
+               ) : (
+                 <span className="text-[8px] font-black text-amber-500 uppercase animate-pulse italic">Scanning_Fleet...</span>
+               )}
+            </div>
+            
+            {booking.technician ? (
+              <div className="flex items-center gap-6">
+                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center text-indigo-600 shadow-sm">
+                  <ShieldCheck size={28} />
+                </div>
+                <div>
+                  <p className="text-xl font-black tracking-tighter italic uppercase">{booking.technician.firstName} {booking.technician.lastName}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Auth_ID: {booking.technician._id.slice(-8)}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm font-bold text-slate-300 italic">Waiting for technician to accept mission node...</p>
+            )}
+          </section>
+          <div className="p-4 bg-indigo-50/50 rounded-[2rem] flex items-center gap-4">
+             <ShieldCheck size={20} className="text-indigo-600" />
+             <p className="text-[9px] font-bold text-slate-500 leading-relaxed uppercase">
+               Transaction secured via RSA-2048 Node encryption.
+             </p>
+          </div>
         </div>
-      )}
 
-      {/* Payment Button */}
-      <button
-        onClick={handlePayment}
-        disabled={!booking?.technician}
-        className={`w-full py-4 rounded-xl text-lg transition ${
-          booking?.technician
-            ? "bg-black text-white hover:scale-105"
-            : "bg-gray-400 cursor-not-allowed"
-        }`}
-      >
-        {booking?.technician
-          ? "Pay Now 💳"
-          : "Waiting for Technician..."}
-      </button>
+        {/* RIGHT: BILLING ENGINE */}
+        <div className="lg:col-span-5 space-y-6">
+          <div className="bg-white border border-slate-100 rounded-[3rem] p-10 shadow-xl relative overflow-hidden">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-10 text-center">Cost_Matrix_V3</h3>
+            
+            <div className="space-y-5">
+              <BillingLine label="Base_Service_Fee" amount={cost?.basePrice} />
+              <BillingLine label="Processing_Charge" amount={cost?.serviceCharge} />
+              
+              {/* FIXED: Spare Parts Logic */}
+              <div className={`flex justify-between items-center py-2 ${cost?.sparePartsCost > 0 ? 'opacity-100' : 'opacity-30'}`}>
+                <div className="flex items-center gap-2">
+                  <Package size={12} className="text-indigo-500" />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Spare_Parts_Cost</span>
+                </div>
+                <span className="font-mono text-sm font-black">₹{cost?.sparePartsCost || 0}</span>
+              </div>
 
+              {cost?.emergencyCharge > 0 && (
+                <BillingLine label="Urgency_Protocol_Fee" amount={cost.emergencyCharge} />
+              )}
+
+              <div className="pt-8 mt-8 border-t-2 border-dashed border-slate-100">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <p className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.3em]">Total_Liability</p>
+                    <p className="text-4xl font-black tracking-tighter italic">₹{cost?.total}</p>
+                  </div>
+                  <CheckCircle size={32} className={booking.technician ? 'text-indigo-600' : 'text-slate-100'} />
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handlePayment}
+              disabled={!booking?.technician}
+              className={`w-full mt-10 py-6 rounded-2xl font-black text-[11px] uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-4 group shadow-lg ${
+                booking?.technician
+                  ? "bg-slate-900 text-white hover:bg-indigo-600 active:scale-95"
+                  : "bg-slate-100 text-slate-300 cursor-not-allowed"
+              }`}
+            >
+              <CreditCard size={18} />
+              {booking?.technician ? "Execute_Payment" : "Awaiting_Tech_Link"}
+              <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
+        </div>
+      </main>
     </div>
   );
 };
+
+// Sub-component for Billing Lines
+const BillingLine = ({ label, amount }) => (
+  <div className="flex justify-between items-center">
+    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+    <span className="font-mono text-sm font-bold text-slate-700">₹{amount || 0}</span>
+  </div>
+);
 
 export default PaymentPage;

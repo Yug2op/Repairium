@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import Payment from '../models/Payment.js';
 import Booking from '../models/Booking.js';
 import { sendPaymentNotification } from '../middleware/notification.js';
+import Technician from '../models/Technician.js';
 
 // Initialize Razorpay instance
 const initializeRazorpay = () => {
@@ -247,7 +248,7 @@ async function processSplitPayments(payment) {
 
     // Update technician earnings if payment is successful
     if (payment.technician) {
-      const Technician = require('../models/Technician.js').default;
+      const Technician = (await import('../models/Technician.js')).default;
       await Technician.findByIdAndUpdate(payment.technician, {
         $inc: {
           'earnings.total': payment.amount.technicianShare,

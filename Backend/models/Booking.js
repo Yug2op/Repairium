@@ -59,7 +59,7 @@ const bookingSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'assigned', 'in_progress', 'completed', 'cancelled'],
+    enum: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'],
     default: 'pending'
   },
   priority: {
@@ -187,33 +187,5 @@ bookingSchema.virtual('isOverdue').get(function() {
   return false;
 });
 
-// Pre-save middleware to update timeline
-bookingSchema.pre('save', function(next) {
-  if (this.isModified('status')) {
-    this.timeline.push({
-      status: this.status,
-      timestamp: new Date(),
-      note: `Status changed to ${this.status}`
-    });
-    
-    // Update timestamps based on status
-    switch (this.status) {
-      case 'assigned':
-        this.assignedAt = new Date();
-        break;
-      case 'in_progress':
-        this.startedAt = new Date();
-        break;
-      case 'completed':
-        this.completedAt = new Date();
-        break;
-      case 'cancelled':
-        this.cancelledAt = new Date();
-        break;
-    }
-  }
-  
-  next();
-});
-
 export default mongoose.model('Booking', bookingSchema);
+

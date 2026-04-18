@@ -169,6 +169,12 @@ class NotificationService {
     // Play sound for new booking (if enabled)
     this.playNotificationSound('new_booking');
 
+    // Navigate to booking details if clicked
+    this.handleBookingClick = (booking) => {
+      // Navigate to technician booking list page
+      window.location.href = '/technician/bookings';
+    };
+
     // Trigger custom handlers
     this.triggerHandler('new_booking_request', data);
   }
