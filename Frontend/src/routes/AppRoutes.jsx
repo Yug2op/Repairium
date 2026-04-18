@@ -11,24 +11,32 @@ import ContactPage from "../pages/ContactPage";
 
 import BookingPage from "../pages/BookingPage";
 import PaymentPage from "../pages/PaymentPage"; // ✅ NEW
-import BookingSuccess from "../pages/BookingSuccess"; // ✅ NEW
+import PaymentSuccess from "../pages/PaymentSuccess"; // ✅ NEW
 
 // Dashboards
 import UserDashboard from "../pages/user/Dashboard";
 import TechnicianDashboard from "../pages/technician/Dashboard";
 import AdminDashboard from "../pages/admin/Dashboard";
+import Users from "../pages/admin/Users"
+import Technicians from "../pages/admin/Technicians"
+import Bookings from "../pages/admin/Bookings"
 
 // ✅ ADD THESE HERE
 import Users from "../pages/admin/Users";
 import Technicians from "../pages/admin/Technicians";
 import Bookings from "../pages/admin/Bookings";
 import MyBookings from "../pages/user/MyBookings";
+import BookingsPage from "../pages/technician/BookingsPage";
 
 import Profile from "../pages/user/Profile";
 
 // Protection
 import ProtectedRoute from "./ProtectedRoute";
 import RoleRoute from "./RoleRoute";
+import NotFound from "../pages/NotFound";
+import BookingProgressPage from "../pages/technician/BookingProgressPage";
+import MyBookingsPage from "../pages/technician/MyBookingsPage";
+import CompletedBookingsPage from "../pages/technician/CompletedBookingsPage";
 
 const AppRoutes = () => {
   return (
@@ -141,7 +149,7 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["user"]}>
-              <BookingSuccess />
+              <PaymentSuccess />
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -158,14 +166,54 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/technician/bookings"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["technician"]}>
+              <BookingsPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/technician/bookings/:bookingId"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["technician"]}>
+              <BookingProgressPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/technician/my-bookings"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["technician"]}>
+              <MyBookingsPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/technician/completed-bookings"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["technician"]}>
+              <CompletedBookingsPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
 
       {/* ADMIN */}
       <Route
-        path="/admin/dashboard"
+        path="/technician/bookings/:bookingId"
         element={
           <ProtectedRoute>
-            <RoleRoute allowedRoles={["admin"]}>
-              <AdminDashboard />
+            <RoleRoute allowedRoles={["technician"]}>
+              <BookingProgressPage />
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -210,7 +258,7 @@ const AppRoutes = () => {
       {/* 404 */}
       <Route
         path="*"
-        element={<h1 className="text-center mt-10">404 Not Found</h1>}
+        element={<NotFound />}
       />
 
     </Routes>

@@ -40,22 +40,18 @@ export const authenticate = async (req, res, next) => {
     
     const decoded = verifyToken(token);
     
-    console.log('Decoded token:', decoded); // Debug log
     
     let user = null;
     
     // Find user based on role
     switch (decoded.role) {
       case 'user':
-        console.log('Looking for user with ID:', decoded.userId); // Debug log
         user = await User.findById(decoded.userId);
         break;
       case 'admin':
-        console.log('Looking for admin with ID:', decoded.userId); // Debug log
         user = await Admin.findById(decoded.userId);
         break;
       case 'technician':
-        console.log('Looking for technician with ID:', decoded.userId); // Debug log
         user = await Technician.findById(decoded.userId);
         break;
       default:
@@ -65,7 +61,6 @@ export const authenticate = async (req, res, next) => {
         });
     }
     
-    console.log('Found user:', user ? 'Yes' : 'No'); // Debug log
     
     if (!user) {
       return res.status(401).json({

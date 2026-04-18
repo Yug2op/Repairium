@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import technicianServices from '../../services/technicianService';
 import {
   Wallet, Star, CheckCircle, MapPin, Wrench,
@@ -7,7 +8,11 @@ import {
   ShieldCheck,
   User,
   ArrowRight,
-  Cpu
+  Cpu,
+  Zap,
+  History,
+  Navigation as NavIcon,
+  Calendar
 } from 'lucide-react';
 import TechnicianStats from '../../components/technician/TechnicianStats';
 import TechnicianProfile from '../../components/technician/TechnicianProfile';
@@ -16,6 +21,7 @@ import notificationService from '../../services/notificationService';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const TechnicianDashboard = () => {
+  const navigate = useNavigate(); // Initialize navigation
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -37,20 +43,16 @@ const TechnicianDashboard = () => {
     }
   };
 
-  // Fetch data on mount
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
         setLoading(true);
         const result = await technicianServices.getProfile();
         setData(result.data);
-        
-        // Initialize notification service when user data is loaded
+
         if (result.data?.technician || result.data?.user) {
           const user = result.data.technician || result.data.user;
           notificationService.initialize(user);
-          
-          // Set up notification listeners
           setupNotificationListeners();
         }
       } catch (err) {
@@ -62,72 +64,26 @@ const TechnicianDashboard = () => {
     loadDashboardData();
   }, []);
 
-  // Setup notification listeners
   const setupNotificationListeners = () => {
-    // Listen for new booking requests
     notificationService.on('new_booking_request', (data) => {
-      console.log('New booking request received:', data);
-      // Show alert or update UI
       if (data.booking.priority === 'urgent' || data.booking.serviceType === 'emergency') {
-        alert(`URGENT: New ${data.booking.serviceType} booking request in ${data.booking.serviceAddress.city}!`);
+        alert(`URGENT: New ${data.booking.serviceType} booking request!`);
       }
     });
 
-    // Listen for booking assignment
-    notificationService.on('booking_assigned', (data) => {
-      console.log('Booking assigned:', data);
-      // Update status to busy
-      if (data.booking.technician === data?.technicianId) {
-        notificationService.updateTechnicianStatus('busy');
-      }
-    });
+    notificationService.on('payment_received', (data) => loadStats());
 
-    // Listen for payment notifications
-    notificationService.on('payment_received', (data) => {
-      console.log('Payment received:', data);
-      // Update earnings display
-      if (data.payment.technician === profile?._id) {
-        // Refresh stats to show new earnings
-        loadStats();
-      }
-    });
-
-    // Listen for review notifications
-    notificationService.on('new_review', (data) => {
-      console.log('New review received:', data);
-      // Update rating display
-      if (data.review.technician === profile?._id) {
-        // Refresh profile data to show new rating
-        window.location.reload();
-      }
-    });
-
-    // Listen for verification status updates
-    notificationService.on('verification_status_updated', (data) => {
-      console.log('Verification status updated:', data);
-      if (data.verificationStatus === 'verified') {
-        alert('Congratulations! Your profile has been verified.');
-        window.location.reload();
-      }
-    });
-
-    // Cleanup on unmount
     return () => {
       notificationService.off('new_booking_request');
-      notificationService.off('booking_assigned');
       notificationService.off('payment_received');
-      notificationService.off('new_review');
-      notificationService.off('verification_status_updated');
     };
   };
 
-  // Handle Online/Offline toggle
   const handleToggleStatus = async () => {
     try {
       setIsUpdating(true);
       const newStatus = !profile.isOnline;
       await technicianServices.updateStatus(newStatus);
-      // Optimistic UI update or re-fetch
       setData(prev => ({
         ...prev,
         technician: { ...profile, isOnline: newStatus }
@@ -140,7 +96,6 @@ const TechnicianDashboard = () => {
   };
 
   if (loading) return <LoadingScreen />;
-  // if (error) return console.log(error)
   if (error) return <ErrorScreen message={error} />;
 
   const profile = data?.technician || data?.user;
@@ -148,7 +103,7 @@ const TechnicianDashboard = () => {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+      <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
         <main className="max-w-7xl mx-auto p-6 md:p-12 animate-in fade-in duration-700">
 
           {view === 'overview' ? (
@@ -164,13 +119,13 @@ const TechnicianDashboard = () => {
                       <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-4 border-white ${profile?.isOnline ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.5)]'}`} />
                     </div>
                     <div>
-                      <h1 className="text-5xl font-black tracking-tighter text-slate-900 leading-none italic">
+                      <h1 className="text-5xl font-black tracking-tighter text-slate-900 leading-none italic uppercase">
                         Command <span className="text-slate-200 font-light">Center</span>
                       </h1>
                       <div className="flex items-center gap-4 mt-4">
                         <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Node Active</span>
                         <div className="h-px w-12 bg-slate-100" />
-                        <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50/50 px-3 py-1 rounded-full border border-indigo-100">
+                        <span className="text-[10px] font-black text-indigo-500 tracking-widest bg-indigo-50/50 px-3 py-1 rounded-full border border-indigo-100 uppercase">
                           v{profile?._id?.slice(-3) || '3.0'}
                         </span>
                       </div>
@@ -178,8 +133,8 @@ const TechnicianDashboard = () => {
                   </div>
                 </div>
 
-                {/* Status & Navigation Actions */}
-                <div className="flex items-center gap-4 bg-white/50 backdrop-blur-md p-2 rounded-[2rem] border border-slate-100 shadow-sm">
+                {/* Navigation & Status Actions */}
+                <div className="flex flex-wrap items-center gap-4 bg-white/50 backdrop-blur-md p-2 rounded-[2.5rem] border border-slate-100 shadow-sm">
                   <button
                     disabled={isUpdating}
                     onClick={handleToggleStatus}
@@ -194,19 +149,12 @@ const TechnicianDashboard = () => {
 
                   <button
                     onClick={() => {
-                      // If we are opening the stats, load the fresh data
                       if (!showStats) loadStats();
-
-                      // Toggle the visibility state
                       setShowStats(!showStats);
                     }}
-                    className={`p-4 rounded-2xl transition-all active:scale-95 border-2 ${showStats
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-200'
-                        : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-500 hover:text-indigo-600 shadow-sm'
-                      }`}
-                    title={showStats ? "Collapse Metrics" : "Expand Metrics"}
+                    className={`p-4 rounded-2xl transition-all active:scale-95 border-2 ${showStats ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-200' : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-500 hover:text-indigo-600 shadow-sm'}`}
                   >
-                    <BarChart size={20} className={showStats ? 'animate-pulse' : ''} />
+                    <BarChart size={20} />
                   </button>
 
                   <button
@@ -220,132 +168,181 @@ const TechnicianDashboard = () => {
 
               <AnimatePresence>
                 {showStats && (
-                  <motion.section
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden mb-20"
-                  >
+                  <motion.section initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-20">
                     <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-2xl shadow-slate-200/50">
                       <div className="flex items-center justify-between mb-10">
                         <div className="flex items-center gap-3">
                           <div className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
                           <h3 className="text-xl font-black italic tracking-tighter">Real-time <span className="text-slate-300">Metrics</span></h3>
                         </div>
-                        <button
-                          onClick={() => setShowStats(false)}
-                          className="text-[10px] font-black text-slate-300 hover:text-rose-500 uppercase tracking-widest transition-colors"
-                        >
-                          Close Analytics [ESC]
-                        </button>
                       </div>
-
-                      {/* This is where your actual charts component lives */}
                       <TechnicianStats stats={stats} />
                     </div>
                   </motion.section>
                 )}
               </AnimatePresence>
 
-              {/* --- ANALYTICS HUD --- */}
-              <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
-                <StatBox
-                  icon={<Wallet />}
-                  label="Treasury"
-                  value={`₹${profile?.earnings?.total}`}
-                  sub={`₹${profile?.earnings?.pending} floating`}
-                  trend="+12%"
-                />
-                <StatBox
-                  icon={<Star />}
-                  label="Reputation"
-                  value={profile?.rating?.average || '0'}
-                  sub={`${profile?.rating?.count} nodes`}
-                  trend="98%"
-                />
-                <StatBox
-                  icon={<CheckCircle />}
-                  label="Efficiency"
-                  value={`${profile?.completionRate}%`}
-                  sub="Task completion"
-                  trend="HIGH"
-                />
-                <StatBox
-                  icon={<Wrench />}
-                  label="Runtime"
-                  value={`${profile?.experience}Y`}
-                  sub="Senior Level"
-                  trend="MASTER"
-                />
-              </section>
+              {/* --- INTEGRATED COMMAND MATRIX --- */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-20">
 
-              {/* --- DATA VISUALIZATION AREA --- */}
+                {/* LEFT: ANALYTICS HUD (2x2 Grid) - spans 7 columns */}
+                <section className="col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <StatBox
+                    icon={<Wallet />}
+                    label="Treasury"
+                    value={`₹${profile?.earnings?.total}`}
+                    sub={`₹${profile?.earnings?.pending} floating`}
+                    trend="+12%"
+                  />
+                  <StatBox
+                    icon={<Star />}
+                    label="Reputation"
+                    value={profile?.rating?.average || '0'}
+                    sub={`${profile?.rating?.count} nodes`}
+                    trend="98%"
+                  />
+                  <StatBox
+                    icon={<CheckCircle />}
+                    label="Efficiency"
+                    value={`${profile?.completionRate}%`}
+                    sub="Task completion"
+                    trend="HIGH"
+                  />
+                  <StatBox
+                    icon={<Calendar />}
+                    label="Runtime"
+                    value={`${profile?.experience}Y`}
+                    sub="Senior Level"
+                    trend="MASTER"
+                  />
+                </section>
+
+                {/* RIGHT: MISSION CONTROL NAVIGATION (1x3 Vertical Stack) - spans 5 columns */}
+                <section className="lg:col-span-4 flex flex-col gap-6">
+                  <NavCard
+                    title="Available Fleet"
+                    desc="Sync with open service requests."
+                    icon={<Zap size={20} />}
+                    onClick={() => navigate('/technician/bookings')}
+                    color="indigo"
+                  />
+                  <NavCard
+                    title="Active Assignments"
+                    desc="Manage nodes currently in progress."
+                    icon={<NavIcon size={20} />}
+                    onClick={() => navigate('/technician/my-bookings')}
+                    color="slate"
+                  />
+                  <NavCard
+                    title="Archive Terminal"
+                    desc="View resolved historical data."
+                    icon={<History size={20} />}
+                    onClick={() => navigate('/technician/completed-bookings')}
+                    color="emerald"
+                  />
+                </section>
+
+              </div>
+
+              {/* --- SPATIAL TRACKING --- */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-
-                {/* Left Column: Metadata & Status */}
                 <div className="lg:col-span-4 space-y-12">
                   <div className="space-y-6">
                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Specialization</p>
                     <div className="flex flex-wrap gap-2">
                       {profile?.skills?.map((s, i) => (
-                        <span key={i} className="px-4 py-2 bg-white text-slate-900 rounded-xl text-[10px] font-black border border-slate-100 uppercase tracking-widest shadow-sm">
-                          {s}
-                        </span>
+                        <span key={i} className="px-4 py-2 bg-white text-slate-900 rounded-xl text-[10px] font-black border border-slate-100 uppercase tracking-widest shadow-sm">{s}</span>
                       ))}
                     </div>
                   </div>
-
                   <div className="space-y-6">
                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Systems Verification</p>
                     <div className="space-y-3">
                       <StatusNode label="Access Protocol" ok={profile?.isActive} />
                       <StatusNode label="Identity Sync" ok={profile?.isVerified} />
-                      <StatusNode label="Treasury Gateway" ok={profile?.bankDetails?.isVerified} />
                     </div>
                   </div>
                 </div>
 
-                {/* Right Column: Spatial Tracking Table */}
                 <div className="lg:col-span-8 bg-white rounded-[3rem] border border-slate-100 shadow-2xl shadow-slate-100/50 overflow-hidden">
                   <div className="p-10 border-b border-slate-50 flex items-center justify-between">
+
                     <div className="flex items-center gap-4">
+
                       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,1)]" />
+
                       <h3 className="text-xl font-black italic tracking-tighter">Spatial <span className="text-slate-300">Tracking</span></h3>
+
                     </div>
+
                     <span className="text-[10px] font-black text-slate-300 tracking-[0.3em] uppercase">Active Zones</span>
+
                   </div>
 
+
+
                   <div className="overflow-x-auto">
+
                     <table className="w-full text-left">
+
                       <thead>
+
                         <tr className="text-slate-300 text-[10px] uppercase font-black tracking-[0.2em] border-b border-slate-50">
+
                           <th className="px-10 py-6">Region Node</th>
+
                           <th className="px-10 py-6">Geocode</th>
+
                           <th className="px-10 py-6 text-right">Coverage</th>
+
                         </tr>
+
                       </thead>
+
                       <tbody className="divide-y divide-slate-50">
+
                         {profile?.serviceAreas?.map((area) => (
+
                           <tr key={area._id} className="hover:bg-slate-50/50 transition-all group">
+
                             <td className="px-10 py-8">
+
                               <p className="font-black text-slate-800 uppercase tracking-tight text-sm group-hover:text-indigo-600 transition-colors">
+
                                 {area.city}, {area.state}
+
                               </p>
+
                             </td>
+
                             <td className="px-10 py-8">
+
                               <span className="font-mono text-[11px] text-slate-400 bg-slate-50 px-2 py-1 rounded-md tracking-tighter">
+
                                 {area.pincode}
+
                               </span>
+
                             </td>
+
                             <td className="px-10 py-8 text-right">
+
                               <span className="text-[11px] font-black italic text-slate-900">
+
                                 {area.serviceRadius} <span className="text-[9px] text-slate-300">KM</span>
+
                               </span>
+
                             </td>
+
                           </tr>
+
                         ))}
+
                       </tbody>
+
                     </table>
+
                   </div>
                 </div>
               </div>
@@ -354,20 +351,12 @@ const TechnicianDashboard = () => {
             /* SETTINGS VIEW */
             <div className="animate-in fade-in slide-in-from-bottom-4 mt-10 duration-700">
               <header className="flex items-center justify-between">
-                <button
-                  onClick={() => setView('overview')}
-                  className="flex items-center gap-4 text-[10px] font-black text-slate-400 hover:text-indigo-600 transition-all uppercase tracking-[0.3em] group"
-                >
+                <button onClick={() => setView('overview')} className="flex items-center gap-4 text-[10px] font-black text-slate-400 hover:text-indigo-600 transition-all uppercase tracking-[0.3em] group">
                   <ArrowRight size={16} className="rotate-180 group-hover:-translate-x-2 transition-transform" />
                   Exit To Command
                 </button>
-                <div className="h-px flex-1 bg-slate-100 mx-10" />
               </header>
-
-              <TechnicianProfile
-                initialData={profile}
-                onUpdate={() => window.location.reload()}
-              />
+              <TechnicianProfile initialData={profile} onUpdate={() => window.location.reload()} />
             </div>
           )}
         </main>
@@ -376,8 +365,36 @@ const TechnicianDashboard = () => {
   );
 }
 
-// --- REDESIGNED HELPER COMPONENTS ---
+// --- NEW COMPONENT: MISSION NAV CARD ---
+const NavCard = ({ title, desc, icon, onClick, color }) => {
+  const colors = {
+    indigo: "bg-indigo-600 text-white shadow-indigo-100 hover:bg-indigo-700",
+    slate: "bg-slate-900 text-white shadow-slate-100 hover:bg-slate-800",
+    emerald: "bg-emerald-600 text-white shadow-emerald-100 hover:bg-emerald-700"
+  };
 
+  return (
+    <motion.div
+      whileHover={{ y: -5 }}
+      onClick={onClick}
+      className={`${colors[color]} p-4 rounded-[2rem] cursor-pointer shadow-2xl transition-all group relative overflow-hidden`}
+    >
+      <div className="relative z-10 ml-4 mt-2">
+        <div className="w-8 h-8 bg-white/10 rounded-2xl flex items-center justify-center mb-2 backdrop-blur-md">
+          {icon}
+        </div>
+        <h3 className="text-xl font-black tracking-tighter italic mb-2 uppercase">{title}</h3>
+        <p className="text-white/60 text-xs font-medium leading-relaxed uppercase tracking-tight">{desc}</p>
+        <div className="mt-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+          Access Protocol <ArrowRight size={12} />
+        </div>
+      </div>
+      <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-colors" />
+    </motion.div>
+  );
+};
+
+// --- (Keep StatBox, StatusNode, LoadingScreen, ErrorScreen helpers) ---
 const StatBox = ({ icon, label, value, sub, trend }) => (
   <div className="group bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-slate-200/50 transition-all hover:-translate-y-1">
     <div className="flex justify-between items-start mb-6">

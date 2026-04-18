@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 
 const useNotifications = () => {
   const [loading, setLoading] = useState(false);
@@ -40,9 +40,8 @@ const useNotifications = () => {
         ...(unreadOnly && { unreadOnly: 'true' })
       });
 
-      const response = await axios.get(
-        `/api/notifications?${queryParams.toString()}`,
-        getAuthConfig()
+      const response = await API.get(
+        `/notifications?${queryParams.toString()}`
       );
 
       return response.data;
@@ -61,9 +60,8 @@ const useNotifications = () => {
     setError(null);
     
     try {
-      const response = await axios.get(
-        `/api/notifications/${notificationId}`,
-        getAuthConfig()
+      const response = await API.get(
+        `/notifications/${notificationId}`
       );
 
       return response.data;
@@ -79,10 +77,9 @@ const useNotifications = () => {
   // Mark notification as read
   const markAsRead = useCallback(async (notificationId) => {
     try {
-      const response = await axios.patch(
-        `/api/notifications/${notificationId}/read`,
-        {},
-        getAuthConfig()
+      const response = await API.patch(
+        `/notifications/${notificationId}/read`,
+        {}
       );
 
       return response.data;
@@ -96,10 +93,9 @@ const useNotifications = () => {
   // Mark all notifications as read
   const markAllAsRead = useCallback(async () => {
     try {
-      const response = await axios.patch(
-        '/api/notifications/read-all',
-        {},
-        getAuthConfig()
+      const response = await API.patch(
+        '/notifications/read-all',
+        {}
       );
 
       return response.data;
@@ -113,9 +109,8 @@ const useNotifications = () => {
   // Delete notification
   const deleteNotification = useCallback(async (notificationId) => {
     try {
-      const response = await axios.delete(
-        `/api/notifications/${notificationId}`,
-        getAuthConfig()
+      const response = await API.delete(
+        `/notifications/${notificationId}`
       );
 
       return response.data;
@@ -129,9 +124,8 @@ const useNotifications = () => {
   // Get notification statistics
   const getNotificationStats = useCallback(async () => {
     try {
-      const response = await axios.get(
-        '/api/notifications/stats',
-        getAuthConfig()
+      const response = await API.get(
+        '/notifications/stats'
       );
 
       return response.data;
@@ -145,10 +139,9 @@ const useNotifications = () => {
   // Send custom notification
   const sendCustomNotification = useCallback(async (notificationData) => {
     try {
-      const response = await axios.post(
-        '/api/notifications/send',
-        notificationData,
-        getAuthConfig()
+      const response = await API.post(
+        '/notifications/send',
+        notificationData
       );
 
       return response.data;
@@ -179,9 +172,8 @@ const useNotifications = () => {
         ...(urgency && { urgency })
       });
 
-      const response = await axios.get(
-        `/api/notifications/technician/my-notifications?${queryParams.toString()}`,
-        getAuthConfig()
+      const response = await API.get(
+        `/notifications/technician/my-notifications?${queryParams.toString()}`
       );
 
       return response.data;
@@ -197,10 +189,9 @@ const useNotifications = () => {
   // Notify multiple technicians
   const notifyTechnicians = useCallback(async (notificationData) => {
     try {
-      const response = await axios.post(
-        '/api/notifications/technicians/notify',
-        notificationData,
-        getAuthConfig()
+      const response = await API.post(
+        '/notifications/technicians/notify',
+        notificationData
       );
 
       return response.data;

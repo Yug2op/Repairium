@@ -1,23 +1,49 @@
-import { sendNotification } from '../middleware/notification.js';
+import { sendNotification, sendTemplatedEmail } from '../middleware/notification.js';
 import Technician from '../models/Technician.js';
-import Booking from '../models/Booking.js';
 
 class TechnicianNotificationService {
   // Notify technicians about new booking requests in their area
-  static async notifyNewBookingRequest(booking) {
-    try {
-      // Find technicians in the service area
-      const nearbyTechnicians = await this.findNearbyTechnicians(booking.serviceAddress.coordinates);
-      
-      const notifications = [];
-      
-      for (const technician of nearbyTechnicians) {
-        // Skip if technician is not online or not verified
-        if (!technician.isOnline || !technician.isVerified) continue;
-        
+  static async notifyNewBookingRequest(booking, appliance) {
+  try {
+    const nearbyTechnicians = await this.findNearbyTechnicians(
+      booking.serviceAddress
+    );
+
+    console.log(
+      `[Booking ${booking.bookingId}] Found ${nearbyTechnicians.length} nearby technicians`
+    );
+
+    // Handle no technicians case
+    if (nearbyTechnicians.length === 0) {
+      const Admin = await import('../models/Admin.js').then(m => m.default);
+      const admins = await Admin.find({ isActive: true });
+
+      await Promise.all(
+        admins.map(admin =>
+          sendEmail(
+            admin.email,
+            'No Technicians Available',
+            `No technicians available for booking ${booking.bookingId} in ${booking.serviceAddress.city}, ${booking.serviceAddress.state}`
+          )
+        )
+      );
+
+      return [];
+    }
+
+    // Parallel execution for all technicians
+    const notificationPromises = nearbyTechnicians.map(async (technician) => {
+      try {
+        // Skip invalid technicians
+        if (!technician.isOnline || technician.verificationStatus !== 'verified') {
+          console.log(`Skipping technician ${technician._id}: ${!technician.isOnline ? 'offline' : 'not verified'}`);
+          return null;
+        }
+
+        // Create notification data
         const notificationData = {
           title: 'New Booking Request',
-          message: `New ${booking.serviceType} booking request ${booking.bookingId} in ${booking.serviceAddress.city}`,
+          message: `New ${booking.serviceType} booking ${booking.bookingId} in ${booking.serviceAddress.city}`,
           type: 'booking',
           priority: booking.serviceType === 'emergency' ? 'urgent' : 'medium',
           recipient: technician._id,
@@ -32,18 +58,42 @@ class TechnicianNotificationService {
           metadata: {
             bookingId: booking.bookingId,
             serviceType: booking.serviceType,
-            urgency: booking.priority,
             address: booking.serviceAddress,
             preferredDate: booking.preferredDate,
             preferredTime: booking.preferredTime,
             estimatedCost: booking.estimatedCost.total
           }
         };
-        
+
+        // Send in-app notification
         const notification = await sendNotification(notificationData);
-        notifications.push(notification);
-        
-        // Emit real-time notification to specific technician
+        console.log(`Notification created for technician ${technician._id}: ${notification._id}`);
+
+        // Send email notification
+        await sendTemplatedEmail(technician.email, 'newServiceRequest', {
+          firstName: technician.firstName,
+          bookingId: booking.bookingId,
+          applianceName: appliance ? `${appliance.brand} ${appliance.model}` : 'Unknown Appliance',
+          serviceType: booking.serviceType,
+          address: `${booking.serviceAddress.street}, ${booking.serviceAddress.city}`,
+          preferredDate: booking.preferredDate,
+          preferredTime: booking.preferredTime,
+          finalAmount: booking.estimatedCost.total
+        });
+
+        // Store notification in technician's notifications array
+        await Technician.findByIdAndUpdate(technician._id, {
+          $push: {
+            notifications: {
+              type: 'booking_request',
+              message: `New booking ${booking.bookingId} available`,
+              booking: booking._id,
+              createdAt: new Date()
+            }
+          }
+        });
+
+        // Emit real-time socket notification
         if (global.io) {
           global.io.to(`technician_${technician._id}`).emit('new_booking_request', {
             notification: {
@@ -66,15 +116,31 @@ class TechnicianNotificationService {
             }
           });
         }
+
+        return notification;
+
+      } catch (err) {
+        console.error(`Failed to notify technician ${technician._id}:`, err);
+        return null;
       }
-      
-      console.log(`Sent new booking notifications to ${notifications.length} technicians`);
-      return notifications;
-    } catch (error) {
-      console.error('Error notifying technicians about new booking:', error);
-      throw error;
-    }
+    });
+
+    // Wait for all notifications to complete
+    const results = await Promise.allSettled(notificationPromises);
+
+    const successful = results
+      .filter(r => r.status === 'fulfilled' && r.value)
+      .map(r => r.value);
+
+    console.log(`Sent notifications to ${successful.length} technicians`);
+
+    return successful;
+
+  } catch (error) {
+    console.error('Error notifying technicians:', error);
+    throw error;
   }
+}
   
   // Notify technician when assigned to a booking
   static async notifyBookingAssigned(booking, technicianId) {
@@ -347,23 +413,22 @@ class TechnicianNotificationService {
   }
   
   // Find nearby technicians based on booking location
-  static async findNearbyTechnicians(coordinates, maxDistance = 10000) { // 10km default
+  static async findNearbyTechnicians(serviceAddress) { // 10km default
     try {
       const technicians = await Technician.find({
         isVerified: true,
         isActive: true,
         isOnline: true,
-        'serviceAreas.coordinates': {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: coordinates
-            },
-            $maxDistance: maxDistance
-          }
+        verificationStatus: 'verified',
+      serviceAreas: {
+        $elemMatch: {
+          $or: [
+            { pincode: serviceAddress.pincode },
+            { city: serviceAddress.city }
+          ]
         }
-      }).select('_id firstName lastName email phone isOnline serviceAreas');
-      
+      }
+      }).select('_id firstName lastName email phone isOnline isVerified isActive verificationStatus serviceAreas');    
       return technicians;
     } catch (error) {
       console.error('Error finding nearby technicians:', error);
