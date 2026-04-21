@@ -19,7 +19,7 @@ const Bookings = () => {
 
   return (
     <div className="p-6 text-white">
-      <h1 className="text-2xl font-bold mb-6">Bookings</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-8">Bookings</h1>
 
       <table className="w-full bg-gray-800 rounded-xl">
         <thead>

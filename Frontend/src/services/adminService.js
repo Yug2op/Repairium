@@ -63,6 +63,14 @@ export const getAllBookings = async (params = {}) => {
 };
 
 // ===============================
+// 📊 Reports / Analytics
+// ===============================
+export const getReports = async (type = "revenue") => {
+  const res = await API.get(`/admin/reports?type=${type}`);
+  return res.data;
+};
+
+// ===============================
 // ✅ Export default (optional)
 // ===============================
 export default {
@@ -73,4 +81,5 @@ export default {
   updateTechnicianStatus,
   verifyTechnician,
   getAllBookings,
+  getReports,
 };

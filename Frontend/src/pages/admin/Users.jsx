@@ -1,13 +1,3 @@
-// import React from 'react'
-
-// const Users = () => {
-//   return (
-//     <div>Users</div>
-//   )
-// }
-
-// export default Users
-
 import React, { useEffect, useState } from "react";
 import { getAllUsers, updateUserStatus } from "../../services/adminService";
 
@@ -38,7 +28,7 @@ const Users = () => {
 
   return (
     <div className="p-6 text-white">
-      <h1 className="text-2xl font-bold mb-6">Users</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-8">Users</h1>
 
       <table className="w-full bg-gray-800 rounded-xl overflow-hidden">
         <thead>

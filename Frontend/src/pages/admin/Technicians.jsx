@@ -33,7 +33,7 @@ const Technicians = () => {
 
   return (
     <div className="p-6 text-white">
-      <h1 className="text-2xl font-bold mb-6">Technicians</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-8">Technicians</h1>
 
       <table className="w-full bg-gray-800 rounded-xl">
         <thead>

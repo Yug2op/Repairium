@@ -431,95 +431,76 @@ export const manageTechnicianStatus = async (req, res) => {
 // Get Reports
 export const getReports = async (req, res) => {
   try {
-    const { type, startDate, endDate } = req.query;
+    const { type } = req.query;
 
-    let reportData = {};
+    let data = [];
 
-    switch (type) {
-      case 'revenue':
-        reportData = await Booking.aggregate([
-          {
-            $match: {
-              status: 'completed',
-              paymentStatus: 'paid',
-              ...(startDate && { createdAt: { $gte: new Date(startDate) } }),
-              ...(endDate && { createdAt: { $lte: new Date(endDate) } })
-            }
-          },
-          {
-            $group: {
-              _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-              dailyRevenue: { $sum: "$finalAmount" },
-              bookingsCount: { $sum: 1 }
-            }
-          },
-          { $sort: { "_id": 1 } }
-        ]);
-        break;
+    // 🟢 REVENUE REPORT
+    if (type === "revenue") {
+      const bookings = await Booking.find({ status: "completed" });
 
-      case 'bookings':
-        reportData = await Booking.aggregate([
-          {
-            $match: {
-              ...(startDate && { createdAt: { $gte: new Date(startDate) } }),
-              ...(endDate && { createdAt: { $lte: new Date(endDate) } })
-            }
-          },
-          {
-            $group: {
-              _id: "$status",
-              count: { $sum: 1 }
-            }
-          }
-        ]);
-        break;
+      const revenueMap = {};
 
-      case 'technicians':
-        reportData = await Technician.aggregate([
-          {
-            $group: {
-              _id: "$verificationStatus",
-              count: { $sum: 1 }
-            }
-          }
-        ]);
-        break;
+      bookings.forEach((b) => {
+        const date = new Date(b.createdAt);
+        const key = `${date.getMonth() + 1}/${date.getFullYear()}`;
 
-      case 'users':
-        reportData = await User.aggregate([
-          {
-            $group: {
-              _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
-              newUsers: { $sum: 1 }
-            }
-          },
-          { $sort: { "_id": 1 } }
-        ]);
-        break;
+        if (!revenueMap[key]) revenueMap[key] = 0;
+        revenueMap[key] += b.amount || 0;
+      });
 
-      default:
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid report type'
-        });
+      data = Object.keys(revenueMap).map((key) => ({
+        label: key,
+        value: revenueMap[key],
+      }));
     }
 
-    res.status(200).json({
+    // 🟢 BOOKINGS REPORT
+    else if (type === "bookings") {
+      const bookings = await Booking.find();
+
+      const statusMap = {};
+
+      bookings.forEach((b) => {
+        const status = b.status;
+
+        if (!statusMap[status]) statusMap[status] = 0;
+        statusMap[status]++;
+      });
+
+      data = Object.keys(statusMap).map((key) => ({
+        label: key,
+        value: statusMap[key],
+      }));
+    }
+
+    // 🟢 USERS REPORT
+    else if (type === "users") {
+      const users = await User.find();
+
+      const monthMap = {};
+
+      users.forEach((u) => {
+        const date = new Date(u.createdAt);
+        const key = `${date.getMonth() + 1}/${date.getFullYear()}`;
+
+        if (!monthMap[key]) monthMap[key] = 0;
+        monthMap[key]++;
+      });
+
+      data = Object.keys(monthMap).map((key) => ({
+        label: key,
+        value: monthMap[key],
+      }));
+    }
+
+    return res.json({
       success: true,
-      message: 'Report generated successfully',
-      data: {
-        type,
-        period: { startDate, endDate },
-        data: reportData
-      }
+      data,
     });
   } catch (error) {
-    console.error('Get reports error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate report',
-      error: error.message
-    });
+    console.error("Reports error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
